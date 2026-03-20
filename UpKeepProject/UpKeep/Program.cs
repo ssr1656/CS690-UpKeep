@@ -1,9 +1,13 @@
-﻿namespace UpKeep;
+﻿using UpKeep.Services;
+
+namespace UpKeep;
 
 class Program
 {
     static void Main(string[] args)
     {
-        Console.WriteLine("Hello, World!");
+        var store = new DataStore();
+        var ui = new ConsoleUI(store);
+        ui.Run();
     }
 }

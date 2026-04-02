@@ -53,14 +53,79 @@ public class ConsoleUI
     }
 
     // ──────────────────────────────────────────────
-    // FR-5.1: Dashboard – placeholder (to be implemented)
+    // FR-5.1 + FR-5.2: Dashboard with red overdue items
     // ──────────────────────────────────────────────
     private void ShowDashboard()
     {
         Console.WriteLine("========================================");
         Console.WriteLine("         UpKeep - Home Maintenance      ");
         Console.WriteLine("========================================");
-        Console.WriteLine("  Dashboard: Coming Soon");
+        Console.WriteLine("  Dashboard Overview");
+        Console.WriteLine();
+
+        var assets = _store.GetAllAssets();
+
+        if (assets.Count == 0)
+        {
+            Console.WriteLine("  No assets yet. Add some to get started.");
+            Console.WriteLine();
+            return;
+        }
+
+        var today = DateTime.Today;
+        var overdueItems = new List<(Asset Asset, DateTime? NextDue, DateTime? LastService)>();
+
+        foreach (var asset in assets)
+        {
+            var lastService = _store.GetLastServiceDate(asset.Id);
+            DateTime? nextDue = null;
+
+            if (lastService.HasValue && asset.FrequencyInDays.HasValue)
+            {
+                nextDue = lastService.Value.AddDays(asset.FrequencyInDays.Value);
+            }
+
+            bool isOverdue = nextDue.HasValue && nextDue.Value.Date <= today;
+            bool neverServiced = !lastService.HasValue;
+
+            if (isOverdue || neverServiced)
+            {
+                overdueItems.Add((asset, nextDue, lastService));
+            }
+        }
+
+        if (overdueItems.Count == 0)
+        {
+            Console.WriteLine("  All caught up! No overdue or pending tasks.");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.WriteLine($"  {"Asset",-20} {"Location",-15} {"Last Service",-14} {"Next Due",-14} {"Status"}");
+        Console.WriteLine("  " + new string('-', 75));
+
+        foreach (var (asset, nextDue, lastService) in overdueItems)
+        {
+            var lastStr = lastService.HasValue
+                ? lastService.Value.ToString("yyyy-MM-dd")
+                : "Never";
+            var nextStr = nextDue.HasValue
+                ? nextDue.Value.ToString("yyyy-MM-dd")
+                : "N/A";
+
+            bool isOverdue = nextDue.HasValue && nextDue.Value.Date <= today;
+            string status = isOverdue ? "OVERDUE" : "NEEDS SERVICE";
+
+            // FR-5.2: Color-code overdue tasks in red
+            if (isOverdue)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+            }
+
+            Console.WriteLine($"  {asset.Name,-20} {asset.Location,-15} {lastStr,-14} {nextStr,-14} {status}");
+            Console.ResetColor();
+        }
+
         Console.WriteLine();
     }
 
@@ -75,7 +140,8 @@ public class ConsoleUI
             Console.WriteLine("========== Manage Home Assets ==========");
             Console.WriteLine("  1. View All Assets");
             Console.WriteLine("  2. Add New Asset");
-            Console.WriteLine("  3. Back to Main Menu");
+            Console.WriteLine("  3. Delete Asset");
+            Console.WriteLine("  4. Back to Main Menu");
             Console.WriteLine("========================================");
             Console.Write("Select an option: ");
 
@@ -90,6 +156,9 @@ public class ConsoleUI
                     AddNewAsset();
                     break;
                 case "3":
+                    DeleteAsset();
+                    break;
+                case "4":
                     return;
             }
         }
@@ -101,7 +170,7 @@ public class ConsoleUI
         Console.WriteLine("========== All Assets ==========");
         Console.WriteLine();
 
-        var assets = _store.Assets;
+        var assets = _store.GetAllAssets();
 
         if (assets.Count == 0)
         {
@@ -192,6 +261,14 @@ public class ConsoleUI
             return;
         }
 
+        // FR-2.2: Validate that a maintenance date cannot be in the future
+        if (date.Date > DateTime.Today)
+        {
+            Console.WriteLine("Error: Maintenance date cannot be in the future.");
+            Pause();
+            return;
+        }
+
         Console.Write("Description of work: ");
         var description = Console.ReadLine()?.Trim();
 
@@ -262,6 +339,40 @@ public class ConsoleUI
 
         Console.WriteLine();
         Console.WriteLine($"Total records: {logs.Count}");
+
+        // FR-3.2: Calculate Days Since Last Service
+        var lastServiceDate = logs[0].Date;
+        var daysSince = (DateTime.Today - lastServiceDate.Date).Days;
+        Console.WriteLine($"Days since last service: {daysSince}");
+
+        Pause();
+    }
+
+    // ──────────────────────────────────────────────
+    // FR-1.2: Delete asset and all associated history
+    // ──────────────────────────────────────────────
+    private void DeleteAsset()
+    {
+        Console.Clear();
+        Console.WriteLine("========== Delete Asset ==========");
+        Console.WriteLine();
+
+        var asset = SelectAsset();
+        if (asset == null) return;
+
+        Console.Write($"Are you sure you want to delete '{asset.Name}' and all its history? (y/n): ");
+        var confirm = Console.ReadLine()?.Trim().ToLower();
+
+        if (confirm == "y")
+        {
+            _store.DeleteAsset(asset.Id);
+            Console.WriteLine($"Asset '{asset.Name}' and all associated logs deleted.");
+        }
+        else
+        {
+            Console.WriteLine("Deletion cancelled.");
+        }
+
         Pause();
     }
 
@@ -270,7 +381,7 @@ public class ConsoleUI
     // ──────────────────────────────────────────────
     private Asset? SelectAsset()
     {
-        var assets = _store.Assets;
+        var assets = _store.GetAllAssets();
 
         if (assets.Count == 0)
         {

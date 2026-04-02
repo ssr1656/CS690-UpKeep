@@ -5,8 +5,7 @@ namespace UpKeep.Services;
 
 public class DataStore
 {
-    private static readonly string DataFilePath =
-        Path.Combine(AppContext.BaseDirectory, "upkeep_data.json");
+    private readonly string _dataFilePath;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -15,25 +14,30 @@ public class DataStore
 
     private UpKeepData _data = new();
 
-    public IReadOnlyList<Asset> Assets => _data.Assets.AsReadOnly();
+    public DataStore(string? dataFilePath = null)
+    {
+        _dataFilePath = dataFilePath ?? Path.Combine(AppContext.BaseDirectory, "upkeep_data.json");
+    }
+
+    public List<Asset> GetAllAssets() => _data.Assets;
     public IReadOnlyList<MaintenanceLog> Logs => _data.Logs.AsReadOnly();
 
     public void Load()
     {
-        if (!File.Exists(DataFilePath))
+        if (!File.Exists(_dataFilePath))
         {
             _data = new UpKeepData();
             return;
         }
 
-        var json = File.ReadAllText(DataFilePath);
+        var json = File.ReadAllText(_dataFilePath);
         _data = JsonSerializer.Deserialize<UpKeepData>(json, JsonOptions) ?? new UpKeepData();
     }
 
     public void Save()
     {
         var json = JsonSerializer.Serialize(_data, JsonOptions);
-        File.WriteAllText(DataFilePath, json);
+        File.WriteAllText(_dataFilePath, json);
     }
 
     // FR-1.1: Add a new asset
@@ -67,5 +71,28 @@ public class DataStore
             .OrderByDescending(l => l.Date)
             .Select(l => (DateTime?)l.Date)
             .FirstOrDefault();
+    }
+
+    // FR-1.2: Delete an asset and all its associated logs
+    public bool DeleteAsset(Guid assetId)
+    {
+        var asset = _data.Assets.FirstOrDefault(a => a.Id == assetId);
+        if (asset == null) return false;
+
+        _data.Assets.Remove(asset);
+        _data.Logs.RemoveAll(l => l.AssetId == assetId);
+        Save();
+        return true;
+    }
+
+    // FR-4.1: Update asset frequency
+    public void UpdateAssetFrequency(Guid assetId, int? frequencyInDays)
+    {
+        var asset = _data.Assets.FirstOrDefault(a => a.Id == assetId);
+        if (asset != null)
+        {
+            asset.FrequencyInDays = frequencyInDays;
+            Save();
+        }
     }
 }

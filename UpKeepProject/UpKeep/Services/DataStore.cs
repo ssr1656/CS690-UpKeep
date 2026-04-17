@@ -73,6 +73,17 @@ public class DataStore
             .FirstOrDefault();
     }
 
+    // FR-4.1: Update frequency in days for an asset
+    public bool UpdateAssetFrequency(Guid assetId, int? frequencyInDays)
+    {
+        var asset = _data.Assets.FirstOrDefault(a => a.Id == assetId);
+        if (asset == null) return false;
+
+        asset.FrequencyInDays = frequencyInDays;
+        Save();
+        return true;
+    }
+
     // FR-1.2: Delete an asset and all its associated logs
     public bool DeleteAsset(Guid assetId)
     {
@@ -85,14 +96,4 @@ public class DataStore
         return true;
     }
 
-    // FR-4.1: Update asset frequency
-    public void UpdateAssetFrequency(Guid assetId, int? frequencyInDays)
-    {
-        var asset = _data.Assets.FirstOrDefault(a => a.Id == assetId);
-        if (asset != null)
-        {
-            asset.FrequencyInDays = frequencyInDays;
-            Save();
-        }
-    }
 }

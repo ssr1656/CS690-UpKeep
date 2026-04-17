@@ -24,7 +24,8 @@ public class ConsoleUI
             Console.WriteLine("  1. Manage Home Assets");
             Console.WriteLine("  2. Log Maintenance Event");
             Console.WriteLine("  3. View Maintenance History");
-            Console.WriteLine("  4. Exit");
+            Console.WriteLine("  4. Manage Recurring Schedules");
+            Console.WriteLine("  5. Exit");
             Console.WriteLine("========================================");
             Console.Write("Select an option: ");
 
@@ -42,6 +43,9 @@ public class ConsoleUI
                     ViewMaintenanceHistory();
                     break;
                 case "4":
+                    ManageRecurringSchedules();
+                    break;
+                case "5":
                     Console.WriteLine("Goodbye!");
                     return;
                 default:
@@ -344,6 +348,74 @@ public class ConsoleUI
         var lastServiceDate = logs[0].Date;
         var daysSince = (DateTime.Today - lastServiceDate.Date).Days;
         Console.WriteLine($"Days since last service: {daysSince}");
+
+        // FR-4.2: Calculate and display Next Due Date
+        if (asset.FrequencyInDays.HasValue)
+        {
+            var nextDue = lastServiceDate.AddDays(asset.FrequencyInDays.Value);
+            Console.WriteLine($"Frequency: Every {asset.FrequencyInDays.Value} days");
+            Console.WriteLine($"Next due date: {nextDue:yyyy-MM-dd}");
+        }
+
+        Pause();
+    }
+
+    // ──────────────────────────────────────────────
+    // FR-4.1 + FR-4.2: Manage Recurring Schedules
+    // ──────────────────────────────────────────────
+    private void ManageRecurringSchedules()
+    {
+        Console.Clear();
+        Console.WriteLine("========== Manage Recurring Schedules ==========");
+        Console.WriteLine();
+
+        var asset = SelectAsset();
+        if (asset == null) return;
+
+        var currentFreq = asset.FrequencyInDays.HasValue
+            ? $"{asset.FrequencyInDays.Value} days"
+            : "Not set";
+
+        Console.WriteLine($"Asset: {asset.Name}");
+        Console.WriteLine($"Current frequency: {currentFreq}");
+
+        var lastService = _store.GetLastServiceDate(asset.Id);
+        if (lastService.HasValue && asset.FrequencyInDays.HasValue)
+        {
+            var nextDue = lastService.Value.AddDays(asset.FrequencyInDays.Value);
+            Console.WriteLine($"Last service: {lastService.Value:yyyy-MM-dd}");
+            Console.WriteLine($"Next due date: {nextDue:yyyy-MM-dd}");
+        }
+
+        Console.WriteLine();
+        Console.Write("Enter new frequency in days (or 0 to clear, Enter to keep current): ");
+        var input = Console.ReadLine()?.Trim();
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            Console.WriteLine("No changes made.");
+            Pause();
+            return;
+        }
+
+        if (!int.TryParse(input, out int newFreq) || newFreq < 0)
+        {
+            Console.WriteLine("Invalid value.");
+            Pause();
+            return;
+        }
+
+        int? frequency = newFreq == 0 ? null : newFreq;
+        _store.UpdateAssetFrequency(asset.Id, frequency);
+
+        if (frequency.HasValue)
+        {
+            Console.WriteLine($"Frequency updated to every {frequency.Value} days.");
+        }
+        else
+        {
+            Console.WriteLine("Frequency cleared.");
+        }
 
         Pause();
     }
